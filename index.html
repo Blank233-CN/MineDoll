@@ -151,7 +151,7 @@
       <div class="export-head">
         <div>
           <h2 id="export-title">导出循环动画</h2>
-          <p>2 秒 / 4 拍 · 120 BPM · 无缝循环</p>
+          <p id="export-subtitle">2 秒 / 4 拍 · 120 BPM · 无缝循环</p>
         </div>
         <button type="button" class="export-close" id="export-close" aria-label="关闭">×</button>
       </div>
@@ -172,6 +172,16 @@
           <button type="button" class="chip" data-quality="4k">4K 60</button>
         </div>
       </div>
+
+      <div class="export-row">
+        <span class="export-label">音频</span>
+        <div class="export-chips" id="export-audio">
+          <button type="button" class="chip active" data-audio="none">无声</button>
+          <button type="button" class="chip" data-audio="music">附带音乐</button>
+        </div>
+      </div>
+
+      <p class="export-tip" id="export-audio-tip"></p>
 
       <p class="export-tip" id="export-tip">MP4 和预览白框完全一致：横屏 1920×1080、竖屏 1080×1920（4K 同比例翻倍），60fps、H.264。GIF 固定 480×480 正方形，方便当表情包。</p>
       <p class="export-tip export-mode-tip" id="export-mode-tip"></p>

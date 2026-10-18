@@ -47,6 +47,8 @@
   ];
 
   const BARS = CHORUS_BARS.concat(VERSE_BARS);
+  const SYNTH_DURATION = BARS.length * 4 * BEAT;
+  const EXPORT_RATE = 48000;
 
   let ctx = null;
   let master = null;
@@ -58,6 +60,8 @@
   let playing = false;
   let source = 'synth';
   let audioEl = null;
+  let audioFile = null;
+  let decodedBuffer = null;
   let fileUrl = null;
   let fileName = '';
 
@@ -78,13 +82,8 @@
     return buffer;
   }
 
-  function ensureContext() {
-    if (ctx) return ctx;
-    const AudioCtor = global.AudioContext || global.webkitAudioContext;
-    if (!AudioCtor) return null;
-
-    ctx = new AudioCtor();
-
+  // 在 ctx 上搭建压缩、总音量、混响与噪声源，实时播放与离线导出共用
+  function buildGraph() {
     const compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -16;
     compressor.knee.value = 12;
@@ -108,7 +107,15 @@
     noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
     const noise = noiseBuffer.getChannelData(0);
     for (let i = 0; i < length; i++) noise[i] = Math.random() * 2 - 1;
+  }
 
+  function ensureContext() {
+    if (ctx) return ctx;
+    const AudioCtor = global.AudioContext || global.webkitAudioContext;
+    if (!AudioCtor) return null;
+
+    ctx = new AudioCtor();
+    buildGraph();
     return ctx;
   }
 
@@ -386,6 +393,8 @@
 
     if (fileUrl) URL.revokeObjectURL(fileUrl);
     fileUrl = URL.createObjectURL(file);
+    audioFile = file;
+    decodedBuffer = null;
     audioEl = new Audio(fileUrl);
     audioEl.loop = true;
     audioEl.volume = 0.9;
@@ -407,9 +416,73 @@
       URL.revokeObjectURL(fileUrl);
       fileUrl = null;
     }
+    audioFile = null;
+    decodedBuffer = null;
     source = 'synth';
     fileName = '';
     play();
+  }
+
+  function duration() {
+    if (source === 'file') {
+      if (decodedBuffer) return decodedBuffer.duration;
+      if (audioEl && isFinite(audioEl.duration) && audioEl.duration > 0) return audioEl.duration;
+      return 0;
+    }
+    return SYNTH_DURATION;
+  }
+
+  async function decodeFile() {
+    if (decodedBuffer) return decodedBuffer;
+    if (!audioFile) throw new Error('没有可导出的音频');
+
+    const data = await audioFile.arrayBuffer();
+    const AudioCtor = global.AudioContext || global.webkitAudioContext;
+    if (!AudioCtor) throw new Error('当前浏览器不支持音频解码');
+
+    const decodeCtx = new AudioCtor();
+    try {
+      decodedBuffer = await decodeCtx.decodeAudioData(data);
+    } finally {
+      if (decodeCtx.close) decodeCtx.close();
+    }
+    return decodedBuffer;
+  }
+
+  // 用 OfflineAudioContext 把整段默认旋律一次性渲染出来，供视频封装
+  async function renderSynth() {
+    const OfflineCtor = global.OfflineAudioContext || global.webkitOfflineAudioContext;
+    if (!OfflineCtor) throw new Error('当前浏览器不支持音频渲染');
+
+    const wasPlaying = playing;
+    if (wasPlaying) stop();
+
+    const offline = new OfflineCtor(2, Math.ceil(SYNTH_DURATION * EXPORT_RATE), EXPORT_RATE);
+    const saved = { ctx: ctx, master: master, reverb: reverb, noiseBuffer: noiseBuffer };
+
+    ctx = offline;
+    master = null;
+    reverb = null;
+    noiseBuffer = null;
+    buildGraph();
+
+    const steps = Math.ceil(SYNTH_DURATION / STEP);
+    for (let i = 0; i < steps; i++) scheduleStep(i, i * STEP);
+
+    try {
+      return await offline.startRendering();
+    } finally {
+      ctx = saved.ctx;
+      master = saved.master;
+      reverb = saved.reverb;
+      noiseBuffer = saved.noiseBuffer;
+      if (wasPlaying) play();
+    }
+  }
+
+  async function exportClip() {
+    const buffer = source === 'file' ? await decodeFile() : await renderSynth();
+    return { buffer: buffer, duration: buffer.duration };
   }
 
   const api = {
@@ -423,6 +496,8 @@
     label: function () {
       return source === 'file' ? fileName : '默认旋律';
     },
+    duration: duration,
+    exportClip: exportClip,
     toggle: function () {
       return playing ? (stop(), false) : play();
     },

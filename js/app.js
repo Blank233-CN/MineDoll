@@ -50,6 +50,9 @@
   const exportBarFill = document.getElementById('export-bar-fill');
   const exportStatus = document.getElementById('export-status');
   const exportModeTip = document.getElementById('export-mode-tip');
+  const exportAudio = document.getElementById('export-audio');
+  const exportAudioTip = document.getElementById('export-audio-tip');
+  const exportSubtitle = document.getElementById('export-subtitle');
   const moreBtn = document.getElementById('more-btn');
   const morePanel = document.getElementById('more-panel');
   const copyrightBtn = document.getElementById('copyright-btn');
@@ -117,6 +120,7 @@
   let lastTime = 0;
   let toastTimer = 0;
   let exportBackground = 'white';
+  let exportAudioOn = false;
   let exporting = false;
   let backgroundImage = null;
   let backgroundUrl = null;
@@ -517,12 +521,32 @@
 
   // ---------- export ----------
 
+  function syncExportAudioUi() {
+    const label = window.SkinAudio.label();
+    const seconds = window.SkinAudio.duration();
+    const length = seconds > 0 ? Math.round(seconds) + ' 秒' : '';
+
+    exportSubtitle.textContent = exportAudioOn
+      ? '附带音乐 · 视频时长自动匹配音乐'
+      : '2 秒 / 4 拍 · 120 BPM · 无缝循环';
+
+    exportAudioTip.textContent = exportAudioOn
+      ? '将附带「' + label + '」' + (length ? '（约 ' + length + '）' : '')
+        + '，视频时长自动匹配音乐；GIF 不支持音频。'
+      : '选择「附带音乐」可把当前背景音乐封装进 MP4，视频时长自动匹配音乐；GIF 不支持音频。';
+
+    Array.prototype.forEach.call(exportAudio.querySelectorAll('.chip'), function (chip) {
+      chip.classList.toggle('active', (chip.dataset.audio === 'music') === exportAudioOn);
+    });
+  }
+
   function openExportModal() {
     if (!selectedModel() || exporting) return;
 
     exportProgress.hidden = true;
     exportBarFill.style.width = '0%';
     exportStatus.textContent = '准备中…';
+    syncExportAudioUi();
     exportModal.classList.add('show');
     exportModal.setAttribute('aria-hidden', 'false');
 
@@ -582,70 +606,81 @@
     exportBarFill.style.width = '0%';
     exportStatus.textContent = '准备中…';
 
-    const single = isSingleLayout();
-    const list = single ? [current] : state.models;
-    const spin = single && state.spin;
-    const cycle = format === 'mp4' && list.length > 1;
-    const duration = spin ? 4 : (cycle ? list.length * 2 : 2);
-    const quality = EXPORT_QUALITY[exportQualityKey];
-    const chosenBg = exportBackground === 'image' && !backgroundImage ? 'white' : exportBackground;
-    const mp4Bg = chosenBg === 'transparent' ? 'white' : chosenBg;
-
-    // 输出尺寸跟随画面比例：横屏 16:9 / 竖屏 9:16，与预览框完全一致
-    const portrait = state.aspect < 1;
-    const outWidth = portrait ? quality.height : quality.width;
-    const outHeight = portrait ? quality.width : quality.height;
-
-    // 沿用预览里的环形顺序，保证导出的站位和编辑时一致
-    const order = [];
-    if (!single) {
-      const currentIndex = state.models.indexOf(current);
-      state.ringOrder.forEach(function (id) {
-        const index = state.models.findIndex(function (model) {
-          return model.id === id;
-        });
-        if (index >= 0 && index !== currentIndex) order.push(index);
-      });
-    }
-
-    const payload = {
-      models: list.map(function (model) {
-        return {
-          canvas: model.canvas,
-          slim: slimOf(model),
-          sparse: !!model.sparse
-        };
-      }),
-      fill: state.fill,
-      selectedIndex: list.indexOf(current),
-      order: order,
-      cycle: cycle,
-      spin: spin,
-      loop: 2,
-      duration: duration,
-      aspect: state.aspect,
-      width: outWidth,
-      height: outHeight,
-      fps: quality.fps,
-      bitrate: quality.bitrate,
-      qualityLabel: quality.label,
-      distance: cam.dist,
-      targetY: cam.targetY,
-      overlay: state.overlay,
-      doll: state.mode === 'doll',
-      sitting: state.sitting,
-      bounce: state.bounceOn,
-      yaw: cam.yaw,
-      pitch: cam.pitch,
-      background: format === 'mp4' ? mp4Bg : chosenBg,
-      backgroundImage: chosenBg === 'image' ? backgroundImage : null,
-      onProgress: function (ratio, label) {
-        exportBarFill.style.width = (ratio * 100).toFixed(1) + '%';
-        exportStatus.textContent = label + ' · ' + Math.round(ratio * 100) + '%';
-      }
-    };
-
     try {
+      const single = isSingleLayout();
+      const list = single ? [current] : state.models;
+      const spin = single && state.spin;
+      const cycle = format === 'mp4' && list.length > 1;
+      let duration = spin ? 4 : (cycle ? list.length * 2 : 2);
+      let audioBuffer = null;
+
+      // 附带音乐时，视频时长直接跟随音乐，导出完整一首 / 一整段旋律
+      if (format === 'mp4' && exportAudioOn) {
+        exportStatus.textContent = '准备音频…';
+        const clip = await window.SkinAudio.exportClip();
+        audioBuffer = clip.buffer;
+        duration = clip.duration;
+      }
+
+      const quality = EXPORT_QUALITY[exportQualityKey];
+      const chosenBg = exportBackground === 'image' && !backgroundImage ? 'white' : exportBackground;
+      const mp4Bg = chosenBg === 'transparent' ? 'white' : chosenBg;
+
+      // 输出尺寸跟随画面比例：横屏 16:9 / 竖屏 9:16，与预览框完全一致
+      const portrait = state.aspect < 1;
+      const outWidth = portrait ? quality.height : quality.width;
+      const outHeight = portrait ? quality.width : quality.height;
+
+      // 沿用预览里的环形顺序，保证导出的站位和编辑时一致
+      const order = [];
+      if (!single) {
+        const currentIndex = state.models.indexOf(current);
+        state.ringOrder.forEach(function (id) {
+          const index = state.models.findIndex(function (model) {
+            return model.id === id;
+          });
+          if (index >= 0 && index !== currentIndex) order.push(index);
+        });
+      }
+
+      const payload = {
+        models: list.map(function (model) {
+          return {
+            canvas: model.canvas,
+            slim: slimOf(model),
+            sparse: !!model.sparse
+          };
+        }),
+        fill: state.fill,
+        selectedIndex: list.indexOf(current),
+        order: order,
+        cycle: cycle,
+        spin: spin,
+        loop: 2,
+        duration: duration,
+        audio: format === 'mp4' ? audioBuffer : null,
+        aspect: state.aspect,
+        width: outWidth,
+        height: outHeight,
+        fps: quality.fps,
+        bitrate: quality.bitrate,
+        qualityLabel: quality.label,
+        distance: cam.dist,
+        targetY: cam.targetY,
+        overlay: state.overlay,
+        doll: state.mode === 'doll',
+        sitting: state.sitting,
+        bounce: state.bounceOn,
+        yaw: cam.yaw,
+        pitch: cam.pitch,
+        background: format === 'mp4' ? mp4Bg : chosenBg,
+        backgroundImage: chosenBg === 'image' ? backgroundImage : null,
+        onProgress: function (ratio, label) {
+          exportBarFill.style.width = (ratio * 100).toFixed(1) + '%';
+          exportStatus.textContent = label + ' · ' + Math.round(ratio * 100) + '%';
+        }
+      };
+
       const result = format === 'mp4'
         ? await window.SkinExporter.exportMP4(payload)
         : await window.SkinExporter.exportGIF(payload);
@@ -1260,6 +1295,14 @@
       Array.prototype.forEach.call(exportQuality.querySelectorAll('.chip'), function (item) {
         item.classList.toggle('active', item === chip);
       });
+    });
+  });
+
+  Array.prototype.forEach.call(exportAudio.querySelectorAll('.chip'), function (chip) {
+    chip.addEventListener('click', function () {
+      if (exporting) return;
+      exportAudioOn = chip.dataset.audio === 'music';
+      syncExportAudioUi();
     });
   });
 

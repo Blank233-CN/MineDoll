@@ -231,23 +231,37 @@
     'video/mp4;codecs=avc1.42E01E',
     'video/mp4;codecs=avc1'
   ];
+  // 带音频的 MP4 必须显式要求 AAC，否则浏览器可能塞入 Opus，播放器会报不支持的编码
+  const MP4_AUDIO_MIMES = [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc1.4D402A,mp4a.40.2',
+    'video/mp4;codecs=avc1,mp4a.40.2'
+  ];
   const WEBM_MIMES = [
     'video/webm;codecs=vp9',
     'video/webm;codecs=vp8',
     'video/webm'
   ];
+  const WEBM_AUDIO_MIMES = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9',
+    'video/webm'
+  ];
 
-  function videoCandidates() {
+  function videoCandidates(withAudio) {
     const list = [];
     if (typeof MediaRecorder === 'undefined') return list;
-    for (let i = 0; i < MP4_MIMES.length; i++) {
-      if (MediaRecorder.isTypeSupported(MP4_MIMES[i])) {
-        list.push({ mime: MP4_MIMES[i], ext: 'mp4' });
+    const mp4 = withAudio ? MP4_AUDIO_MIMES : MP4_MIMES;
+    const webm = withAudio ? WEBM_AUDIO_MIMES : WEBM_MIMES;
+    for (let i = 0; i < mp4.length; i++) {
+      if (MediaRecorder.isTypeSupported(mp4[i])) {
+        list.push({ mime: mp4[i], ext: 'mp4' });
       }
     }
-    for (let i = 0; i < WEBM_MIMES.length; i++) {
-      if (MediaRecorder.isTypeSupported(WEBM_MIMES[i])) {
-        list.push({ mime: WEBM_MIMES[i], ext: 'webm' });
+    for (let i = 0; i < webm.length; i++) {
+      if (MediaRecorder.isTypeSupported(webm[i])) {
+        list.push({ mime: webm[i], ext: 'webm' });
       }
     }
     return list;
@@ -255,7 +269,7 @@
 
   function supportsMP4() {
     if (global.SkinMp4 && global.SkinMp4.supported()) return true;
-    return videoCandidates().some(function (format) {
+    return videoCandidates(false).some(function (format) {
       return format.ext === 'mp4';
     });
   }
@@ -302,6 +316,7 @@
       fps: fps,
       duration: options.duration || 2,
       bitrate: options.bitrate || 12000000,
+      audio: options.audio || null,
       render: function (time) {
         drawFrame(surface, settings, time);
       },
@@ -330,9 +345,24 @@
       let settled = false;
       let recorder = null;
       let stream = null;
+      let audioCtx = null;
+      let audioSource = null;
       const chunks = [];
 
       function cleanup() {
+        try {
+          if (audioSource) {
+            audioSource.stop();
+            audioSource.disconnect();
+          }
+        } catch (error) {
+          // ignore
+        }
+        try {
+          if (audioCtx && audioCtx.close) audioCtx.close();
+        } catch (error) {
+          // ignore
+        }
         try {
           if (stream) {
             stream.getTracks().forEach(function (track) { track.stop(); });
@@ -354,6 +384,17 @@
         drawFrame(surface, settings, 0);
 
         stream = surface.outCanvas.captureStream(fps);
+        if (options.audio) {
+          const AudioCtor = global.AudioContext || global.webkitAudioContext;
+          if (!AudioCtor) throw new Error('当前浏览器不支持音频录制');
+          audioCtx = new AudioCtor();
+          audioSource = audioCtx.createBufferSource();
+          audioSource.buffer = options.audio;
+          const destination = audioCtx.createMediaStreamDestination();
+          audioSource.connect(destination);
+          const track = destination.stream.getAudioTracks()[0];
+          if (track) stream.addTrack(track);
+        }
         recorder = new MediaRecorder(stream, {
           mimeType: format.mime,
           videoBitsPerSecond: bitrate
@@ -381,6 +422,8 @@
         };
 
         recorder.start(100);
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        if (audioSource) audioSource.start();
       } catch (error) {
         fail(error);
         return;
@@ -414,7 +457,7 @@
   }
 
   function exportWithMediaRecorder(options) {
-    const formats = videoCandidates();
+    const formats = videoCandidates(!!options.audio);
     if (!formats.length) {
       return Promise.reject(new Error('当前浏览器不支持视频录制'));
     }
