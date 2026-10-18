@@ -1,0 +1,34 @@
+MIT License
+
+Copyright (c) 2026 _blank_233（筑方MC社团）
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+NOTICE（附加说明，非许可证条款）：
+
+本项目《我的弹跳玩偶（MineDoll）》是一个 Minecraft 皮肤 3D 预览与玩偶动画
+导出工具。3D 渲染、视频 / GIF 编码与默认背景音乐均由代码在本地实时生成，
+不包含 Mojang Studios / Microsoft 的官方贴图素材，也不包含任何第三方录音制品。
+
+《我的世界》（Minecraft）名称与品牌归 Mojang Studios / Microsoft 所有。
+本项目为非商业性质的粉丝同人作品，不与其存在任何关联或背书关系。
+
+用户自行导入的皮肤图片、背景图与音频，其版权与使用授权由用户自行负责。

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0d11">
+  <title>我的弹跳玩偶 · MineDoll · 我的世界玩偶动画生成器</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="stage">
+    <div class="frame" id="frame">
+      <div class="bg-photo" id="bg-photo" aria-hidden="true"></div>
+      <div class="glow" aria-hidden="true"></div>
+      <canvas id="scene" aria-label="Minecraft 皮肤 3D 预览"></canvas>
+      <div class="stage-grid" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button type="button" class="copyright-link" id="copyright-btn" title="查看版权声明">© 2026 _blank_233</button>
+  </header>
+
+  <div class="status">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span id="status-text">64 × 64 · 标准 · 经典 · 双层</span>
+  </div>
+
+  <footer class="dock" id="dock">
+    <div class="dock-row">
+      <button type="button" class="btn primary" id="upload-btn">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 11V3.2M8 3.2 5 6.2M8 3.2l3 3M3 10.5v2A.5.5 0 0 0 3.5 13h9a.5.5 0 0 0 .5-.5v-2"/>
+        </svg>
+        <span>导入皮肤</span>
+      </button>
+      <input type="file" id="file-input" accept="image/png" multiple hidden>
+      <input type="file" id="bg-input" accept="image/*" hidden>
+      <input type="file" id="audio-input" accept="audio/*" hidden>
+
+      <div class="dock-group dock-group-model">
+        <span class="group-label">模型</span>
+        <div class="model-strip" id="model-strip"></div>
+        <button type="button" class="preset" data-preset="0">+ 默认</button>
+      </div>
+
+      <div class="dock-group dock-group-music">
+        <button type="button" class="btn ghost sm" id="music-btn" aria-pressed="false" title="播放 / 暂停背景音乐">
+          <span aria-hidden="true">♪</span>
+          <span>音乐</span>
+        </button>
+        <button type="button" class="btn ghost sm" id="music-import" title="导入本地音频作为背景音乐">
+          <span id="music-import-label">导入音频</span>
+        </button>
+        <button type="button" class="btn ghost sm" id="music-default" hidden title="切回内置的默认旋律">默认旋律</button>
+      </div>
+
+      <button type="button" class="btn ghost sm" id="more-btn" aria-expanded="false" aria-controls="more-panel">
+        <span class="more-full">更多设置</span>
+        <span class="more-short">更多</span>
+      </button>
+
+      <button type="button" class="btn dark" id="export-btn">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 2.5v7.5M8 10 5 7M8 10l3-3M3 12.5v1h10v-1"/>
+        </svg>
+        <span>导出</span>
+      </button>
+    </div>
+
+    <div class="dock-row dock-row-options">
+      <div class="dock-group">
+        <span class="group-label">模型</span>
+        <div class="mode-switch sm" role="group" aria-label="模型布局">
+          <button type="button" class="seg" id="layout-single" aria-pressed="false">单个</button>
+          <button type="button" class="seg active" id="layout-multi" aria-pressed="true">多个</button>
+        </div>
+        <button type="button" class="btn ghost sm" id="spin-btn" aria-pressed="false" disabled title="八拍转一圈，约 4 秒">旋转</button>
+      </div>
+
+      <span class="dock-sep" aria-hidden="true"></span>
+
+      <div class="dock-group">
+        <span class="group-label">玩偶</span>
+        <div class="mode-switch sm" role="group" aria-label="显示模式">
+          <button type="button" class="seg active" id="mode-standard" aria-pressed="true">标准</button>
+          <button type="button" class="seg" id="mode-doll" aria-pressed="false">玩偶</button>
+        </div>
+        <button type="button" class="btn ghost sm" id="sit-btn" aria-pressed="false" disabled>坐下</button>
+        <button type="button" class="btn ghost sm" id="bounce-btn" aria-pressed="false" title="120 BPM · 每拍压缩一次" disabled>弹跳</button>
+      </div>
+
+      <span class="dock-sep" aria-hidden="true"></span>
+
+      <div class="dock-group">
+        <span class="group-label">背景</span>
+        <button type="button" class="btn ghost sm" id="bg-btn">选择图片</button>
+        <button type="button" class="btn ghost sm" id="bg-clear" hidden>清除</button>
+      </div>
+
+      <button type="button" class="btn ghost sm" id="reset-btn">重置视角</button>
+
+      <span class="tip" id="hint">拖拽旋转 · 滚轮缩放 · 点击切换玩偶</span>
+    </div>
+
+    <div class="more-panel" id="more-panel" hidden>
+      <div class="more-title">显示设置</div>
+
+      <div class="more-row">
+        <span class="more-label">外层图层</span>
+        <label class="toggle">
+          <input type="checkbox" id="overlay-toggle" checked>
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="more-row">
+        <span class="more-label">手臂模型</span>
+        <select id="arm-select" aria-label="手臂模型">
+          <option value="auto">自动识别</option>
+          <option value="classic">经典 4px</option>
+          <option value="slim">纤细 3px</option>
+        </select>
+      </div>
+
+      <div class="more-row" id="fill-wrap">
+        <span class="more-label">镂空皮肤填充颜色</span>
+        <select id="fill-select" aria-label="镂空皮肤填充颜色">
+          <option value="auto">自动</option>
+          <option value="black">黑色</option>
+          <option value="white">白色</option>
+          <option value="none">不填充</option>
+        </select>
+      </div>
+
+      <div class="more-row">
+        <span class="more-label">画面比例</span>
+        <select id="aspect-select" aria-label="画面比例">
+          <option value="auto">自动（跟随屏幕）</option>
+          <option value="16:9">横屏 16:9</option>
+          <option value="9:16">竖屏 9:16</option>
+        </select>
+      </div>
+
+    </div>
+  </footer>
+
+  <div class="export-modal" id="export-modal" aria-hidden="true">
+    <div class="export-backdrop" data-close-export></div>
+    <div class="export-panel" role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <div class="export-head">
+        <div>
+          <h2 id="export-title">导出循环动画</h2>
+          <p>2 秒 / 4 拍 · 120 BPM · 无缝循环</p>
+        </div>
+        <button type="button" class="export-close" id="export-close" aria-label="关闭">×</button>
+      </div>
+
+      <div class="export-row">
+        <span class="export-label">背景</span>
+        <div class="export-chips" id="export-bg">
+          <button type="button" class="chip active" data-bg="white">白色</button>
+          <button type="button" class="chip" data-bg="transparent">镂空</button>
+          <button type="button" class="chip" data-bg="image">背景图</button>
+        </div>
+      </div>
+
+      <div class="export-row">
+        <span class="export-label">画质</span>
+        <div class="export-chips" id="export-quality">
+          <button type="button" class="chip active" data-quality="1080">1080P 60</button>
+          <button type="button" class="chip" data-quality="4k">4K 60</button>
+        </div>
+      </div>
+
+      <p class="export-tip" id="export-tip">MP4 和预览白框完全一致：横屏 1920×1080、竖屏 1080×1920（4K 同比例翻倍），60fps、H.264。GIF 固定 480×480 正方形，方便当表情包。</p>
+      <p class="export-tip export-mode-tip" id="export-mode-tip"></p>
+
+      <div class="export-actions">
+        <button type="button" class="btn primary" id="export-mp4">导出 MP4</button>
+        <button type="button" class="btn ghost" id="export-gif">导出 GIF</button>
+      </div>
+
+      <div class="export-progress" id="export-progress" hidden>
+        <div class="export-bar"><span id="export-bar-fill"></span></div>
+        <p id="export-status">准备中…</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="export-modal copyright-modal" id="copyright-modal" aria-hidden="true">
+    <div class="export-backdrop" id="copyright-backdrop"></div>
+    <div class="export-panel copyright-panel" role="dialog" aria-modal="true" aria-labelledby="copyright-title">
+      <div class="export-head">
+        <div>
+          <h2 id="copyright-title">版权声明</h2>
+          <p>© 2026 _blank_233 · 著作权归作者个人所有</p>
+        </div>
+        <button type="button" class="export-close" id="copyright-close" aria-label="关闭">×</button>
+      </div>
+
+      <div class="copyright-body">
+        <p class="cp-lead">© 2026 _blank_233</p>
+        <p>本工具《我的弹跳玩偶（MineDoll）》由 <b>_blank_233</b> 个人独立开发，<b>著作权归 _blank_233 个人所有</b>，用于筑方MC社团展示与分享。本项目使用 <b>MIT 许可证</b> 开源。</p>
+        <p>· 代码与界面设计：_blank_233（个人）<br>
+           · 数据与隐私：导入的皮肤、背景图与导出的视频全程在本地浏览器处理，不上传任何服务器。</p>
+        <p class="cp-lead">免责声明</p>
+        <p>本作品<b>非 MINECRAFT 官方产品</b>，未经 MOJANG 或 MICROSOFT 批准，也不与 MOJANG 或 MICROSOFT 关联。本项目为<b>非商业性质</b>的粉丝同人作品，仅用于学习、展示与娱乐。</p>
+        <p>本项目对《我的世界》名称、品牌及皮肤格式的使用，遵循 <b>Minecraft EULA</b> 与 <b>Minecraft 使用准则</b> 的相关规定；不包含 Mojang Studios / Microsoft 的官方贴图素材。</p>
+        <p>默认背景音乐为程序实时合成的简化旋律，不包含任何第三方录音制品；用户自行导入的音频，其版权与使用授权由用户自行负责。</p>
+        <p>本项目按 <b>MIT 许可证</b> 提供，不提供任何明示或默示的担保。使用过程中出现的任何问题，均与本项目作者无关，由用户自行承担。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="drop-overlay" id="drop-overlay">
+    <div class="drop-card">
+      <div class="drop-badge">PNG</div>
+      <p>松开以载入皮肤</p>
+      <span>支持一次拖入多个 PNG · 64×64 双层 / 64×32 旧版 / 高清倍率</span>
+    </div>
+  </div>
+
+  <div class="fallback" id="fallback">
+    <div class="fallback-card">
+      <h2>无法启动 3D 预览</h2>
+      <p>当前浏览器不支持 WebGL。请更新浏览器，或在设置中开启硬件加速后重试。</p>
+    </div>
+  </div>
+
+  <script src="js/glutils.js"></script>
+  <script src="js/skin.js"></script>
+  <script src="js/character.js"></script>
+  <script src="js/gif.js"></script>
+  <script src="js/durationfix.js"></script>
+  <script src="js/mp4encoder.js"></script>
+  <script src="js/exporter.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
