@@ -46,6 +46,8 @@
   const exportQuality = document.getElementById('export-quality');
   const exportMp4 = document.getElementById('export-mp4');
   const exportGif = document.getElementById('export-gif');
+  const exportImage = document.getElementById('export-image');
+  const exportRatio = document.getElementById('export-ratio');
   const exportProgress = document.getElementById('export-progress');
   const exportBarFill = document.getElementById('export-bar-fill');
   const exportStatus = document.getElementById('export-status');
@@ -121,6 +123,7 @@
   let toastTimer = 0;
   let exportBackground = 'white';
   let exportAudioOn = false;
+  let exportImageRatio = '16:9';
   let exporting = false;
   let backgroundImage = null;
   let backgroundUrl = null;
@@ -622,14 +625,32 @@
         duration = clip.duration;
       }
 
+      const isImage = format === 'image';
       const quality = EXPORT_QUALITY[exportQualityKey];
       const chosenBg = exportBackground === 'image' && !backgroundImage ? 'white' : exportBackground;
       const mp4Bg = chosenBg === 'transparent' ? 'white' : chosenBg;
+      const imageParts = exportImageRatio.split(':');
+      const imageAspect = Number(imageParts[0]) / Number(imageParts[1]);
 
       // 输出尺寸跟随画面比例：横屏 16:9 / 竖屏 9:16，与预览框完全一致
-      const portrait = state.aspect < 1;
-      const outWidth = portrait ? quality.height : quality.width;
-      const outHeight = portrait ? quality.width : quality.height;
+      let outWidth;
+      let outHeight;
+      if (isImage) {
+        if (exportImageRatio === '1:1') {
+          outWidth = quality.height;
+          outHeight = quality.height;
+        } else if (exportImageRatio === '9:16') {
+          outWidth = quality.height;
+          outHeight = quality.width;
+        } else {
+          outWidth = quality.width;
+          outHeight = quality.height;
+        }
+      } else {
+        const portrait = state.aspect < 1;
+        outWidth = portrait ? quality.height : quality.width;
+        outHeight = portrait ? quality.width : quality.height;
+      }
 
       // 沿用预览里的环形顺序，保证导出的站位和编辑时一致
       const order = [];
@@ -665,8 +686,8 @@
         fps: quality.fps,
         bitrate: quality.bitrate,
         qualityLabel: quality.label,
-        distance: cam.dist,
-        targetY: cam.targetY,
+        distance: isImage && Math.abs(imageAspect - state.aspect) >= 0.01 ? null : cam.dist,
+        targetY: isImage && Math.abs(imageAspect - state.aspect) >= 0.01 ? null : cam.targetY,
         overlay: state.overlay,
         doll: state.mode === 'doll',
         sitting: state.sitting,
@@ -675,15 +696,24 @@
         pitch: cam.pitch,
         background: format === 'mp4' ? mp4Bg : chosenBg,
         backgroundImage: chosenBg === 'image' ? backgroundImage : null,
+        filename: isImage
+          ? 'skinlab-still-' + exportImageRatio.replace(':', 'x') + '-' + outWidth + 'x' + outHeight + '.png'
+          : undefined,
         onProgress: function (ratio, label) {
           exportBarFill.style.width = (ratio * 100).toFixed(1) + '%';
           exportStatus.textContent = label + ' · ' + Math.round(ratio * 100) + '%';
         }
       };
 
-      const result = format === 'mp4'
-        ? await window.SkinExporter.exportMP4(payload)
-        : await window.SkinExporter.exportGIF(payload);
+      let result;
+      if (format === 'image') {
+        exportStatus.textContent = '渲染图片…';
+        result = await window.SkinExporter.exportImage(payload);
+      } else if (format === 'mp4') {
+        result = await window.SkinExporter.exportMP4(payload);
+      } else {
+        result = await window.SkinExporter.exportGIF(payload);
+      }
 
       downloadBlob(result.blob, result.filename);
       exportBarFill.style.width = '100%';
@@ -1306,12 +1336,26 @@
     });
   });
 
+  Array.prototype.forEach.call(exportRatio.querySelectorAll('.chip'), function (chip) {
+    chip.addEventListener('click', function () {
+      if (exporting) return;
+      exportImageRatio = chip.dataset.ratio;
+      Array.prototype.forEach.call(exportRatio.querySelectorAll('.chip'), function (item) {
+        item.classList.toggle('active', item === chip);
+      });
+    });
+  });
+
   exportMp4.addEventListener('click', function () {
     runExport('mp4');
   });
 
   exportGif.addEventListener('click', function () {
     runExport('gif');
+  });
+
+  exportImage.addEventListener('click', function () {
+    runExport('image');
   });
 
   document.addEventListener('keydown', function (event) {

@@ -576,9 +576,40 @@
     }
   }
 
+  // 导出单帧 PNG：沿用当前构图与背景，比例由 width / height 决定
+  function exportImage(options) {
+    const width = options.width || 1920;
+    const height = options.height || 1080;
+    const surface = createSurface(options, width, height);
+    const settings = frameSettings(options);
+
+    try {
+      drawFrame(surface, settings, 0);
+    } catch (error) {
+      disposeSurface(surface);
+      throw error;
+    }
+
+    return new Promise(function (resolve, reject) {
+      surface.outCanvas.toBlob(function (blob) {
+        disposeSurface(surface);
+        if (!blob) {
+          reject(new Error('图片编码失败'));
+          return;
+        }
+        resolve({
+          blob: blob,
+          filename: options.filename || 'skinlab-still.png',
+          ext: 'png'
+        });
+      }, 'image/png');
+    });
+  }
+
   global.SkinExporter = {
     supportsMP4: supportsMP4,
     exportMP4: exportMP4,
-    exportGIF: exportGIF
+    exportGIF: exportGIF,
+    exportImage: exportImage
   };
 })(window);

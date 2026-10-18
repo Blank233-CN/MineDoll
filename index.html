@@ -181,14 +181,24 @@
         </div>
       </div>
 
+      <div class="export-row">
+        <span class="export-label">图片比例</span>
+        <div class="export-chips" id="export-ratio">
+          <button type="button" class="chip active" data-ratio="16:9">16:9</button>
+          <button type="button" class="chip" data-ratio="9:16">9:16</button>
+          <button type="button" class="chip" data-ratio="1:1">1:1</button>
+        </div>
+      </div>
+
       <p class="export-tip" id="export-audio-tip"></p>
 
-      <p class="export-tip" id="export-tip">MP4 和预览白框完全一致：横屏 1920×1080、竖屏 1080×1920（4K 同比例翻倍），60fps、H.264。GIF 固定 480×480 正方形，方便当表情包。</p>
+      <p class="export-tip" id="export-tip">MP4 和预览白框完全一致：横屏 1920×1080、竖屏 1080×1920（4K 同比例翻倍），60fps、H.264。GIF 固定 480×480 正方形，方便当表情包。图片导出 PNG，按所选比例输出，透明背景会保留透明通道。</p>
       <p class="export-tip export-mode-tip" id="export-mode-tip"></p>
 
       <div class="export-actions">
         <button type="button" class="btn primary" id="export-mp4">导出 MP4</button>
         <button type="button" class="btn ghost" id="export-gif">导出 GIF</button>
+        <button type="button" class="btn ghost" id="export-image">导出图片</button>
       </div>
 
       <div class="export-progress" id="export-progress" hidden>

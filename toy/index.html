@@ -1263,14 +1263,24 @@ body.no-webgl .fallback {
         </div>
       </div>
 
+      <div class="export-row">
+        <span class="export-label">图片比例</span>
+        <div class="export-chips" id="export-ratio">
+          <button type="button" class="chip active" data-ratio="16:9">16:9</button>
+          <button type="button" class="chip" data-ratio="9:16">9:16</button>
+          <button type="button" class="chip" data-ratio="1:1">1:1</button>
+        </div>
+      </div>
+
       <p class="export-tip" id="export-audio-tip"></p>
 
-      <p class="export-tip" id="export-tip">MP4 和预览白框完全一致：横屏 1920×1080、竖屏 1080×1920（4K 同比例翻倍），60fps、H.264。GIF 固定 480×480 正方形，方便当表情包。</p>
+      <p class="export-tip" id="export-tip">MP4 和预览白框完全一致：横屏 1920×1080、竖屏 1080×1920（4K 同比例翻倍），60fps、H.264。GIF 固定 480×480 正方形，方便当表情包。图片导出 PNG，按所选比例输出，透明背景会保留透明通道。</p>
       <p class="export-tip export-mode-tip" id="export-mode-tip"></p>
 
       <div class="export-actions">
         <button type="button" class="btn primary" id="export-mp4">导出 MP4</button>
         <button type="button" class="btn ghost" id="export-gif">导出 GIF</button>
+        <button type="button" class="btn ghost" id="export-image">导出图片</button>
       </div>
 
       <div class="export-progress" id="export-progress" hidden>
@@ -4149,10 +4159,41 @@ body.no-webgl .fallback {
     }
   }
 
+  // 导出单帧 PNG：沿用当前构图与背景，比例由 width / height 决定
+  function exportImage(options) {
+    const width = options.width || 1920;
+    const height = options.height || 1080;
+    const surface = createSurface(options, width, height);
+    const settings = frameSettings(options);
+
+    try {
+      drawFrame(surface, settings, 0);
+    } catch (error) {
+      disposeSurface(surface);
+      throw error;
+    }
+
+    return new Promise(function (resolve, reject) {
+      surface.outCanvas.toBlob(function (blob) {
+        disposeSurface(surface);
+        if (!blob) {
+          reject(new Error('图片编码失败'));
+          return;
+        }
+        resolve({
+          blob: blob,
+          filename: options.filename || 'skinlab-still.png',
+          ext: 'png'
+        });
+      }, 'image/png');
+    });
+  }
+
   global.SkinExporter = {
     supportsMP4: supportsMP4,
     exportMP4: exportMP4,
-    exportGIF: exportGIF
+    exportGIF: exportGIF,
+    exportImage: exportImage
   };
 })(window);
 
@@ -4726,6 +4767,8 @@ window.SKIN_PRESETS = [
   const exportQuality = document.getElementById('export-quality');
   const exportMp4 = document.getElementById('export-mp4');
   const exportGif = document.getElementById('export-gif');
+  const exportImage = document.getElementById('export-image');
+  const exportRatio = document.getElementById('export-ratio');
   const exportProgress = document.getElementById('export-progress');
   const exportBarFill = document.getElementById('export-bar-fill');
   const exportStatus = document.getElementById('export-status');
@@ -4801,6 +4844,7 @@ window.SKIN_PRESETS = [
   let toastTimer = 0;
   let exportBackground = 'white';
   let exportAudioOn = false;
+  let exportImageRatio = '16:9';
   let exporting = false;
   let backgroundImage = null;
   let backgroundUrl = null;
@@ -5302,14 +5346,32 @@ window.SKIN_PRESETS = [
         duration = clip.duration;
       }
 
+      const isImage = format === 'image';
       const quality = EXPORT_QUALITY[exportQualityKey];
       const chosenBg = exportBackground === 'image' && !backgroundImage ? 'white' : exportBackground;
       const mp4Bg = chosenBg === 'transparent' ? 'white' : chosenBg;
+      const imageParts = exportImageRatio.split(':');
+      const imageAspect = Number(imageParts[0]) / Number(imageParts[1]);
 
       // 输出尺寸跟随画面比例：横屏 16:9 / 竖屏 9:16，与预览框完全一致
-      const portrait = state.aspect < 1;
-      const outWidth = portrait ? quality.height : quality.width;
-      const outHeight = portrait ? quality.width : quality.height;
+      let outWidth;
+      let outHeight;
+      if (isImage) {
+        if (exportImageRatio === '1:1') {
+          outWidth = quality.height;
+          outHeight = quality.height;
+        } else if (exportImageRatio === '9:16') {
+          outWidth = quality.height;
+          outHeight = quality.width;
+        } else {
+          outWidth = quality.width;
+          outHeight = quality.height;
+        }
+      } else {
+        const portrait = state.aspect < 1;
+        outWidth = portrait ? quality.height : quality.width;
+        outHeight = portrait ? quality.width : quality.height;
+      }
 
       // 沿用预览里的环形顺序，保证导出的站位和编辑时一致
       const order = [];
@@ -5345,8 +5407,8 @@ window.SKIN_PRESETS = [
         fps: quality.fps,
         bitrate: quality.bitrate,
         qualityLabel: quality.label,
-        distance: cam.dist,
-        targetY: cam.targetY,
+        distance: isImage && Math.abs(imageAspect - state.aspect) >= 0.01 ? null : cam.dist,
+        targetY: isImage && Math.abs(imageAspect - state.aspect) >= 0.01 ? null : cam.targetY,
         overlay: state.overlay,
         doll: state.mode === 'doll',
         sitting: state.sitting,
@@ -5355,15 +5417,24 @@ window.SKIN_PRESETS = [
         pitch: cam.pitch,
         background: format === 'mp4' ? mp4Bg : chosenBg,
         backgroundImage: chosenBg === 'image' ? backgroundImage : null,
+        filename: isImage
+          ? 'skinlab-still-' + exportImageRatio.replace(':', 'x') + '-' + outWidth + 'x' + outHeight + '.png'
+          : undefined,
         onProgress: function (ratio, label) {
           exportBarFill.style.width = (ratio * 100).toFixed(1) + '%';
           exportStatus.textContent = label + ' · ' + Math.round(ratio * 100) + '%';
         }
       };
 
-      const result = format === 'mp4'
-        ? await window.SkinExporter.exportMP4(payload)
-        : await window.SkinExporter.exportGIF(payload);
+      let result;
+      if (format === 'image') {
+        exportStatus.textContent = '渲染图片…';
+        result = await window.SkinExporter.exportImage(payload);
+      } else if (format === 'mp4') {
+        result = await window.SkinExporter.exportMP4(payload);
+      } else {
+        result = await window.SkinExporter.exportGIF(payload);
+      }
 
       downloadBlob(result.blob, result.filename);
       exportBarFill.style.width = '100%';
@@ -5986,12 +6057,26 @@ window.SKIN_PRESETS = [
     });
   });
 
+  Array.prototype.forEach.call(exportRatio.querySelectorAll('.chip'), function (chip) {
+    chip.addEventListener('click', function () {
+      if (exporting) return;
+      exportImageRatio = chip.dataset.ratio;
+      Array.prototype.forEach.call(exportRatio.querySelectorAll('.chip'), function (item) {
+        item.classList.toggle('active', item === chip);
+      });
+    });
+  });
+
   exportMp4.addEventListener('click', function () {
     runExport('mp4');
   });
 
   exportGif.addEventListener('click', function () {
     runExport('gif');
+  });
+
+  exportImage.addEventListener('click', function () {
+    runExport('image');
   });
 
   document.addEventListener('keydown', function (event) {
